@@ -1,5 +1,6 @@
 """RAG pipeline: load document, chunk, embed, retrieve, answer."""
 
+import logging
 import warnings
 from collections.abc import Iterator
 from pathlib import Path
@@ -18,7 +19,7 @@ from langchain_huggingface import HuggingFaceEmbeddings
 SUPPORTED = (".pdf", ".docx", ".md", ".txt")
 EMBED_MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
 _HEADERS = [("#", "h1"), ("##", "h2"), ("###", "h3")]
-LLM_MODEL = "llama-3.3-70b-versatile"
+LLM_MODEL = "openai/gpt-oss-120b"
 HISTORY_TURNS = 4
 BUSY_MSG = "Layanan AI sedang sibuk, coba lagi."
 
@@ -109,7 +110,7 @@ def build_index(chunks: list[dict]) -> FAISS:
     )
 
 
-def retrieve(query: str, index: FAISS, k: int = 4) -> list[dict]:
+def retrieve(query: str, index: FAISS, k: int = 8) -> list[dict]:
     """Top-k chunks with relevance score in [0, 1] (higher = more relevant)."""
     hits = index.similarity_search_with_relevance_scores(query, k=k)
     return [{**doc.metadata, "text": doc.page_content, "score": round(float(s), 3)}
@@ -151,7 +152,8 @@ def answer(question: str, index: FAISS, history: list[dict],
         try:
             for part in (llm or get_llm()).stream(prompt):
                 yield part.content
-        except Exception:  # ponytail: any provider error (rate limit, network, bad key) -> one generic message; log it when there is a log sink
+        except Exception as e:  # rate limit, network, bad key: user sees one message, server log gets the cause
+            logging.getLogger(__name__).error("LLM error: %s: %s", type(e).__name__, str(e)[:300])
             yield BUSY_MSG
 
     return stream(), hits
