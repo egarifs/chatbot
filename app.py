@@ -11,6 +11,19 @@ from rag import SUPPORTED, answer, build_index, chunk, label, load_document
 load_dotenv()  # local .env; on Streamlit Cloud, root-level secrets are already env vars
 
 st.set_page_config(page_title="Paper Assistant", page_icon="📄", layout="wide")
+# Animated pastel gradient behind the chat; pale tones keep text contrast, motion off for reduced-motion users.
+st.html("""<style>
+.stApp {
+  background: linear-gradient(-45deg, #e0f2fe, #ede9fe, #fce7f3, #dcfce7);
+  background-size: 400% 400%;
+  animation: bg 18s ease infinite;
+}
+[data-testid="stHeader"], [data-testid="stBottom"] > div { background: transparent; }
+[data-testid="stChatMessage"] { background: rgba(255,255,255,.7); border-radius: .75rem; }
+@keyframes bg { 0%,100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
+@media (prefers-reduced-motion: reduce) { .stApp { animation: none; } }
+</style>""")
+
 ss = st.session_state
 ss.setdefault("messages", [])
 ss.setdefault("index", None)

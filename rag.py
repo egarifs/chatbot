@@ -142,6 +142,17 @@ def get_llm() -> BaseChatModel:
     return ChatGroq(model=LLM_MODEL, temperature=0.2, max_retries=4, timeout=30)  # free tier: 8k tokens/min, ~4 questions/min; SDK backs off on 429
 
 
+def error_message(e: Exception) -> str:
+    name = type(e).__name__
+    if "api_key" in str(e).lower() and name not in ("AuthenticationError",):
+        return "GROQ_API_KEY belum diatur. Tambahkan di .env (lokal) atau Settings → Secrets (Streamlit Cloud)."
+    if name in ("AuthenticationError", "PermissionDeniedError"):
+        return "GROQ_API_KEY ditolak Groq (salah/kedaluwarsa). Buat key baru di console.groq.com/keys."
+    if name == "NotFoundError":
+        return f"Model {LLM_MODEL} tidak tersedia di Groq."
+    return BUSY_MSG
+
+
 def answer(question: str, index: FAISS, history: list[dict],
            llm: BaseChatModel | None = None) -> tuple[Iterator[str], list[dict]]:
     """Return (token stream, sources). LLM errors become a friendly message instead of a crash."""
@@ -154,8 +165,8 @@ def answer(question: str, index: FAISS, history: list[dict],
         try:
             for part in (llm or get_llm()).stream(prompt):
                 yield part.content
-        except Exception as e:  # rate limit, network, bad key: user sees one message, server log gets the cause
+        except Exception as e:  # user sees a short cause (no secrets, no document text); server log gets details
             logging.getLogger(__name__).error("LLM error: %s: %s", type(e).__name__, str(e)[:300])
-            yield BUSY_MSG
+            yield error_message(e)
 
     return stream(), hits
