@@ -2,7 +2,7 @@
 
 Chatbot RAG untuk tanya-jawab berdasarkan isi satu dokumen, lengkap dengan sumber jawabannya. Final Project Hacktiv8.
 
-**Demo:** _(link Streamlit Cloud menyusul)_
+**Demo:** https://chatbot-egarifs.streamlit.app/
 
 ![Screenshot](docs/screenshot.png)
 
