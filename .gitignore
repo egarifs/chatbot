@@ -1,0 +1,12 @@
+# Private docs (not published)
+PRD.md
+tests/fixtures/eval_prd.md
+
+# Secrets
+.env
+.streamlit/secrets.toml
+
+# Python
+__pycache__/
+.venv/
+tests/eval_questions.md
