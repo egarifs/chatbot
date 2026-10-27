@@ -4,7 +4,9 @@ import zipfile
 
 import pytest
 
-from rag import build_index, chunk, load_document, retrieve
+from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
+
+from rag import BUSY_MSG, answer, build_index, build_prompt, chunk, label, load_document, retrieve
 
 
 def _pdf(path, pages):
@@ -108,3 +110,30 @@ def test_retrieve_finds_relevant_chunk_cross_language(tmp_path):
     assert len(hits) == 2
     assert hits[0]["heading"] == "Harga"
     assert all(0 <= h["score"] <= 1 for h in hits)
+
+
+def test_labels_and_history_limit():
+    hits = [{"page": 3, "text": "a", "chunk_id": 0},
+            {"heading": "Harga", "text": "b", "chunk_id": 1},
+            {"text": "c", "chunk_id": 4}]
+    assert [label(h) for h in hits] == ["Halaman 3", "Heading: Harga", "Bagian 5"]
+    history = [{"role": "user", "content": f"msg{i}"} for i in range(6)]
+    p = build_prompt("q?", hits, history)
+    assert "[Halaman 3] a" in p and "[Heading: Harga] b" in p and "[Bagian 5] c" in p
+    assert "msg1" not in p and all(f"msg{i}" in p for i in range(2, 6))
+
+
+class _Boom(GenericFakeChatModel):
+    def _stream(self, *a, **kw):
+        raise RuntimeError("rate limit")
+
+
+def test_answer_streams_and_falls_back(tmp_path):
+    f = tmp_path / "a.md"
+    f.write_text(MD, encoding="utf-8")
+    index = build_index(chunk(load_document(f)))
+    stream, sources = answer("Berapa harga?", index, [], llm=GenericFakeChatModel(messages=iter(["50 ribu [Heading: Harga]"])))
+    assert "".join(stream) == "50 ribu [Heading: Harga]"
+    assert sources[0]["heading"] == "Harga"
+    stream, _ = answer("Berapa harga?", index, [], llm=_Boom(messages=iter([])))
+    assert "".join(stream) == BUSY_MSG
