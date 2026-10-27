@@ -139,13 +139,15 @@ def build_prompt(question: str, hits: list[dict], history: list[dict]) -> str:
 
 def get_llm() -> BaseChatModel:
     from langchain_groq import ChatGroq  # reads GROQ_API_KEY from env
-    return ChatGroq(model=LLM_MODEL, temperature=0.2, max_retries=1, timeout=30)
+    return ChatGroq(model=LLM_MODEL, temperature=0.2, max_retries=4, timeout=30)  # free tier: 8k tokens/min, ~4 questions/min; SDK backs off on 429
 
 
 def answer(question: str, index: FAISS, history: list[dict],
            llm: BaseChatModel | None = None) -> tuple[Iterator[str], list[dict]]:
     """Return (token stream, sources). LLM errors become a friendly message instead of a crash."""
-    hits = retrieve(question, index)
+    # Follow-ups ("explain the first one") carry no keywords; search with the previous user question too.
+    prev = next((m["content"] for m in reversed(history) if m["role"] == "user"), "")
+    hits = retrieve(f"{prev}\n{question}".strip(), index)
     prompt = build_prompt(question, hits, history)
 
     def stream() -> Iterator[str]:
